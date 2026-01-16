@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vision | Real-time Object Detection</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f2fe;
+            --secondary: #4facfe;
+            --bg: #0b0e14;
+            --card-bg: #1a1f2b;
+            --text: #e0e0e0;
+            --accent: #ff007a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        header {
+            padding: 2rem;
+            text-align: center;
+            background: linear-gradient(135deg, var(--card-bg), var(--bg));
+            border-bottom: 2px solid var(--primary);
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 2rem;
+            padding: 0 1rem;
+        }
+
+        .video-container {
+            background: var(--card-bg);
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .video-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .controls {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        h3 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        button {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        button:hover {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 242, 254, 0.4);
+        }
+
+        button.active {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: #000;
+        }
+
+        .stats {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .badge {
+            background: var(--accent);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 0.8rem;
+        }
+
+        /* Loading Animation */
+        .loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            background-color: #28a745;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+            box-shadow: 0 0 10px #28a745;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>AI Vision Engine</h1>
+    </header>
+
+    <div class="container">
+        <div class="video-container" id="video-box">
+            <!-- Hidden video element for camera -->
+            <video id="video" style="display:none;" autoplay playsinline></video>
+            <!-- Canvas to show processed frames -->
+            <canvas id="canvas" style="width: 100%; height: auto;"></canvas>
+            <div class="loader" id="loader">Initializing Camera...</div>
+        </div>
+
+        <div class="controls">
+            <div>
+                <h3><span class="status-dot" id="status-dot"></span> System Live</h3>
+                <p style="font-size: 0.8rem; color: #888;" id="status-text">Connecting to Camera...</p>
+            </div>
+
+            <div class="btn-group">
+                <h3>Select Model</h3>
+                <button onclick="changeModel('yolov8n.pt')" id="yolov8n.pt" class="active">YOLOv8 Nano</button>
+                <button onclick="changeModel('yolov8s.pt')" id="yolov8s.pt">YOLOv8 Small</button>
+                <button onclick="changeModel('yolov10n.pt')" id="yolov10n.pt">YOLOv10 Nano</button>
+            </div>
+
+            <div class="stats">
+                <h3>Metrics</h3>
+                <div class="stat-item">
+                    <span>Performance</span>
+                    <span class="badge">OPTIMIZED</span>
+                </div>
+                <div class="stat-item">
+                    <span>Inference</span>
+                    <span id="latency">-</span> ms
+                </div>
+                <div class="stat-item">
+                    <span>Status</span>
+                    <span id="fps-counter">Streaming</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        &copy; 2026 AI Vision Systems | Powered by Ultralytics YOLO
+    </footer>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const loader = document.getElementById('loader');
+        const statusText = document.getElementById('status-text');
+        const latencyText = document.getElementById('latency');
+
+        let isProcessing = false;
+
+        // Access Camera
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 },
+                    audio: false
+                });
+                video.srcObject = stream;
+                loader.style.display = 'none';
+                statusText.innerText = 'Camera Active';
+
+                video.onloadedmetadata = () => {
+                    canvas.width = 640;
+                    canvas.height = 480;
+                    processFrame();
+                };
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                statusText.innerText = 'Camera Error: ' + err.message;
+            }
+        }
+
+        async function processFrame() {
+            if (isProcessing) {
+                requestAnimationFrame(processFrame);
+                return;
+            }
+
+            // Draw current video frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Get base64 data
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+            isProcessing = true;
+            const startTime = performance.now();
+
+            try {
+                const response = await fetch('/detect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    // Update canvas with annotated image from server
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0);
+                        const endTime = performance.now();
+                        latencyText.innerText = Math.round(endTime - startTime);
+                        isProcessing = false;
+                        requestAnimationFrame(processFrame);
+                    };
+                    img.src = result.image;
+                } else {
+                    isProcessing = false;
+                    requestAnimationFrame(processFrame);
+                }
+            } catch (err) {
+                console.error("Detection error:", err);
+                isProcessing = false;
+                setTimeout(processFrame, 1000); // Retry after delay
+            }
+        }
+
+        function changeModel(modelName) {
+            document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(modelName).classList.add('active');
+
+            fetch('/change_model', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: modelName }),
+            })
+                .then(response => response.json())
+                .then(data => console.log('Model changed:', data))
+                .catch(error => console.error('Error:', error));
+        }
+
+        setupCamera();
+    </script>
+</body>
+
+</html>

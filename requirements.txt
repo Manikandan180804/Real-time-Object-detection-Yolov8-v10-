@@ -1,0 +1,9 @@
+ultralytics
+opencv-python-headless
+flask
+numpy
+pillow
+pytest
+psutil
+gunicorn
+python-dotenv
