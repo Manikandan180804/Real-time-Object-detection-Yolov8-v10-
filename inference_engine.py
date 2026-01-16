@@ -15,15 +15,19 @@ class DetectionEngine:
         
     def predict(self, frame, conf=0.25, imgsz=640):
         """
-        Run inference on a single frame.
-        :param frame: OpenCV image (BGR)
-        :param conf: Confidence threshold
-        :param imgsz: Inference image size
-        :return: annotated_frame, results
+        Run inference with no gradient tracking to save memory.
         """
-        results = self.model.predict(frame, conf=conf, imgsz=imgsz, verbose=False)
-        annotated_frame = results[0].plot()
-        return annotated_frame, results
+        import torch
+        with torch.no_grad():
+            results = self.model.predict(
+                frame, 
+                conf=conf, 
+                imgsz=imgsz, 
+                verbose=False,
+                device='cpu'  # Explicitly force CPU
+            )
+            annotated_frame = results[0].plot()
+            return annotated_frame, results
 
     def get_detections(self, results):
         """
