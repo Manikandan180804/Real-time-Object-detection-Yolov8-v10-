@@ -24,7 +24,7 @@ class DetectionEngine:
             self.device = 'cpu'
         print(f"Using device: {self.device}")
         
-    def predict(self, frame, conf=0.15, imgsz=640, add_timestamp=True):
+    def predict(self, frame, conf=0.15, imgsz=320, add_timestamp=True):
         """
         Run inference with no gradient tracking and optionally add a timestamp.
         """
@@ -37,7 +37,7 @@ class DetectionEngine:
                 device=self.device
             )
             
-            annotated_frame = results[0].plot()
+            annotated_frame = results[0].plot(line_width=2)
             
             if add_timestamp:
                 # Get current time

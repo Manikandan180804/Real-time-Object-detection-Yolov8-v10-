@@ -263,10 +263,7 @@
         }
 
         async function processFrame() {
-            if (isProcessing) {
-                requestAnimationFrame(processFrame);
-                return;
-            }
+            if (isProcessing) return;
 
             // Draw current video frame to canvas
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
