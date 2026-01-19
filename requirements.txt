@@ -1,5 +1,7 @@
 ultralytics
-opencv-python-headless
+# For Render (Cloud Deployment): opencv-python-headless
+# For Local Camera Window: opencv-python
+opencv-python
 flask
 numpy
 pillow

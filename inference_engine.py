@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 import time
+import torch
+from datetime import datetime
 
 class DetectionEngine:
     def __init__(self, model_path='yolov8n.pt'):
@@ -17,9 +19,6 @@ class DetectionEngine:
         """
         Run inference with no gradient tracking and optionally add a timestamp.
         """
-        import torch
-        from datetime import datetime
-
         with torch.no_grad():
             results = self.model.predict(
                 frame, 
