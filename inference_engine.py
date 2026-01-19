@@ -15,7 +15,16 @@ class DetectionEngine:
         self.model = YOLO(model_path)
         self.model_name = model_path
         
-    def predict(self, frame, conf=0.25, imgsz=640, add_timestamp=True):
+        # Auto-detect device
+        if torch.cuda.is_available():
+            self.device = 'cuda'
+        elif torch.backends.mps.is_available():
+            self.device = 'mps'
+        else:
+            self.device = 'cpu'
+        print(f"Using device: {self.device}")
+        
+    def predict(self, frame, conf=0.15, imgsz=640, add_timestamp=True):
         """
         Run inference with no gradient tracking and optionally add a timestamp.
         """
@@ -25,7 +34,7 @@ class DetectionEngine:
                 conf=conf, 
                 imgsz=imgsz, 
                 verbose=False,
-                device='cpu'  # Explicitly force CPU
+                device=self.device
             )
             
             annotated_frame = results[0].plot()

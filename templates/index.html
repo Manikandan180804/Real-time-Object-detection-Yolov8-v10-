@@ -210,8 +210,8 @@
                     <span id="latency">-</span> ms
                 </div>
                 <div class="stat-item">
-                    <span>Status</span>
-                    <span id="fps-counter">Streaming</span>
+                    <span>FPS / Lag</span>
+                    <span id="fps-counter">0 / 0ms</span>
                 </div>
             </div>
         </div>
@@ -271,8 +271,8 @@
             // Draw current video frame to canvas
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // Get base64 data
-            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            // Get base64 data - Lower quality (0.5) for faster transmission
+            const imageData = canvas.toDataURL('image/jpeg', 0.5);
 
             isProcessing = true;
             const startTime = performance.now();
@@ -292,14 +292,20 @@
                     img.onload = () => {
                         ctx.drawImage(img, 0, 0);
                         const endTime = performance.now();
-                        latencyText.innerText = Math.round(endTime - startTime);
+                        const latency = Math.round(endTime - startTime);
+                        latencyText.innerText = latency;
+
+                        // Update FPS display
+                        const fps = Math.round(1000 / latency);
+                        document.getElementById('fps-counter').innerText = `${fps} FPS`;
+
                         isProcessing = false;
                         requestAnimationFrame(processFrame);
                     };
                     img.src = result.image;
                 } else {
                     isProcessing = false;
-                    requestAnimationFrame(processFrame);
+                    setTimeout(() => requestAnimationFrame(processFrame), 100);
                 }
             } catch (err) {
                 console.error("Detection error:", err);
