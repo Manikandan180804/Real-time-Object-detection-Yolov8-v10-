@@ -32,10 +32,12 @@ def detect():
         return jsonify({"error": "Invalid image"}), 400
 
     # Perform detection
-    annotated_frame, results = engine.predict(frame)
+    print(f"Received frame with shape: {frame.shape}")
+    annotated_frame, results = engine.predict(frame, add_timestamp=True)
     
     # Extract detections for UI
     detections = engine.get_detections(results)
+    print(f"Found {len(detections)} objects.")
 
     # Encode back to base64 to show on UI
     _, buffer = cv2.imencode('.jpg', annotated_frame)

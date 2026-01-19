@@ -18,19 +18,21 @@ def run_realtime(model_path='yolov8n.pt', source=0):
     print("Starting real-time detection. Press 'q' to quit.")
     
     # FPS calculation
-    prev_time = 0
+    prev_time = time.time()
     
     while True:
         ret, frame = cap.read()
         if not ret:
+            print("Failed to grab frame. Exiting...")
             break
             
-        # Inference
-        annotated_frame, results = engine.predict(frame)
+        # Inference with timestamp
+        annotated_frame, results = engine.predict(frame, add_timestamp=True)
         
         # Calculate FPS
         curr_time = time.time()
-        fps = 1 / (curr_time - prev_time)
+        time_diff = curr_time - prev_time
+        fps = 1 / time_diff if time_diff > 0 else 0
         prev_time = curr_time
         
         # Display FPS on frame

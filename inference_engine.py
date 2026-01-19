@@ -13,11 +13,13 @@ class DetectionEngine:
         self.model = YOLO(model_path)
         self.model_name = model_path
         
-    def predict(self, frame, conf=0.25, imgsz=640):
+    def predict(self, frame, conf=0.25, imgsz=640, add_timestamp=True):
         """
-        Run inference with no gradient tracking to save memory.
+        Run inference with no gradient tracking and optionally add a timestamp.
         """
         import torch
+        from datetime import datetime
+
         with torch.no_grad():
             results = self.model.predict(
                 frame, 
@@ -26,7 +28,16 @@ class DetectionEngine:
                 verbose=False,
                 device='cpu'  # Explicitly force CPU
             )
+            
             annotated_frame = results[0].plot()
+            
+            if add_timestamp:
+                # Get current time
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # Add timestamp to frame (bottom left)
+                cv2.putText(annotated_frame, timestamp, (20, annotated_frame.shape[0] - 20), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
             return annotated_frame, results
 
     def get_detections(self, results):

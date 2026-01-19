@@ -178,8 +178,9 @@
 
     <div class="container">
         <div class="video-container" id="video-box">
-            <!-- Hidden video element for camera -->
-            <video id="video" style="display:none;" autoplay playsinline></video>
+            <!-- Hidden video element for camera - using opacity 0 instead of display none -->
+            <video id="video" style="position: absolute; opacity: 0; pointer-events: none;" autoplay
+                playsinline></video>
             <!-- Canvas to show processed frames -->
             <canvas id="canvas" style="width: 100%; height: auto;"></canvas>
             <div class="loader" id="loader">Initializing Camera...</div>
@@ -233,22 +234,31 @@
         // Access Camera
         async function setupCamera() {
             try {
+                statusText.innerText = 'Requesting Camera...';
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: 640, height: 480 },
                     audio: false
                 });
                 video.srcObject = stream;
+
+                // Wait for video to actually start playing
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play().then(resolve);
+                    };
+                });
+
                 loader.style.display = 'none';
                 statusText.innerText = 'Camera Active';
+                console.log("Camera setup successful");
 
-                video.onloadedmetadata = () => {
-                    canvas.width = 640;
-                    canvas.height = 480;
-                    processFrame();
-                };
+                canvas.width = 640;
+                canvas.height = 480;
+                processFrame();
             } catch (err) {
                 console.error("Error accessing camera:", err);
                 statusText.innerText = 'Camera Error: ' + err.message;
+                loader.innerText = 'Camera Error: ' + err.message;
             }
         }
 
