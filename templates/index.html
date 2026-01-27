@@ -44,6 +44,7 @@
             font-size: 2.5rem;
             background: linear-gradient(to right, var(--primary), var(--secondary));
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             text-transform: uppercase;
             letter-spacing: 4px;
@@ -178,12 +179,35 @@
 
     <div class="container">
         <div class="video-container" id="video-box">
-            <!-- Hidden video element for camera - using opacity 0 instead of display none -->
-            <video id="video" style="position: absolute; opacity: 0; pointer-events: none;" autoplay
-                playsinline></video>
+            <!-- Hidden video element for camera - kept slightly visible so browser doesn't sleep it -->
+            <video id="video" style="position: absolute; opacity: 0.1; width: 1px; height: 1px; pointer-events: none;"
+                autoplay playsinline></video>
             <!-- Canvas to show processed frames -->
             <canvas id="canvas" style="width: 100%; height: auto;"></canvas>
             <div class="loader" id="loader">Initializing Camera...</div>
+            <div id="camera-instructions"
+                style="display: none; padding: 2rem; text-align: center; background: rgba(0,0,0,0.8); position: absolute; top:0; left:0; right:0; bottom:0; z-index: 10;">
+                <h2 style="color: var(--accent); margin-bottom: 1rem;">Camera Access Required</h2>
+                <div id="secure-context-warning"
+                    style="display: none; background: #ff4b2b; color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-weight: bold;">
+                    ⚠️ SECURITY ERROR: Camera requires 'localhost' or 'https' to work.
+                </div>
+                <p id="instruction-text" style="margin-bottom: 1.5rem;">Please allow camera access in your browser.</p>
+                <div id="localhost-fix" style="display: none; margin-bottom: 1.5rem;">
+                    <p>You are using an IP address. Browsers block cameras on IP addresses.</p>
+                    <p>Please use this link instead:</p>
+                    <a href="http://localhost:5000"
+                        style="color: var(--primary); font-size: 1.2rem; font-weight: bold;">http://localhost:5000</a>
+                </div>
+                <ol id="standard-steps" style="text-align: left; display: inline-block; margin-bottom: 1.5rem;">
+                    <li>Click the <b>Lock</b> icon in the address bar.</li>
+                    <li>Set <b>Camera</b> to "Allow".</li>
+                    <li>Refresh this page.</li>
+                </ol>
+                <br>
+                <button onclick="window.location.reload()" style="background: var(--primary); color: #000;">Refresh
+                    Page</button>
+            </div>
         </div>
 
         <div class="controls">
@@ -214,6 +238,31 @@
                     <span id="fps-counter">0 / 0ms</span>
                 </div>
             </div>
+
+            <div class="stats" id="debug-section"
+                style="display: none; border-top: 1px solid rgba(255,165,0,0.3); margin-top: 1rem; padding-top: 1rem;">
+                <h3 style="color: #ffa500;">Debug Console</h3>
+                <div id="debug-log"
+                    style="font-family: monospace; font-size: 0.7rem; max-height: 200px; overflow-y: auto; color: #ffa500; background: rgba(0,0,0,0.3); padding: 5px; border-radius: 5px;">
+                    Initializing...
+                </div>
+                <button onclick="copyDebugLog()"
+                    style="font-size: 0.6rem; margin-top: 5px; width: 100%; border-color: rgba(255,165,0,0.3);">Copy
+                    Log</button>
+            </div>
+
+            <div class="stats"
+                style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 1rem; padding-top: 1rem;">
+                <h3>Active Detections</h3>
+                <div id="detections-list"
+                    style="font-size: 0.8rem; max-height: 150px; overflow-y: auto; color: var(--primary);">
+                    No objects detected
+                </div>
+            </div>
+
+            <button id="toggle-debug"
+                onclick="document.getElementById('debug-section').style.display='block'; this.style.display='none';"
+                style="font-size: 0.7rem; opacity: 0.5;">Show Debug Info</button>
         </div>
     </div>
 
@@ -230,46 +279,139 @@
         const latencyText = document.getElementById('latency');
 
         let isProcessing = false;
+        // Offscreen canvas for capturing frames without flicker
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = 640;
+        offscreenCanvas.height = 480;
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+
+        function logDebug(msg) {
+            const log = document.getElementById('debug-log');
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `<div>[${time}] ${msg}</div>`;
+            log.scrollTop = log.scrollHeight;
+            console.log(`[DEBUG] ${msg}`);
+        }
+
+        async function copyDebugLog() {
+            const log = document.getElementById('debug-log').innerText;
+            await navigator.clipboard.writeText(log);
+            alert("Debug log copied to clipboard!");
+        }
 
         // Access Camera
         async function setupCamera() {
+            logDebug("Starting camera setup...");
+            logDebug(`User Agent: ${navigator.userAgent}`);
+            logDebug(`Secure Context: ${window.isSecureContext}`);
+            logDebug(`Protocol: ${window.location.protocol}`);
+            logDebug(`Hostname: ${window.location.hostname}`);
+
             try {
+                if (!window.isSecureContext) {
+                    logDebug("WARNING: Browser is not in a Secure Context.");
+                    document.getElementById('secure-context-warning').style.display = 'block';
+                    document.getElementById('localhost-fix').style.display = 'block';
+                    document.getElementById('standard-steps').style.display = 'none';
+                    document.getElementById('instruction-text').style.display = 'none';
+                }
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Browser API 'getUserMedia' is missing. You MUST use 'localhost' or 'https'.");
+                }
+
+                logDebug("Enumerating devices...");
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                logDebug(`Found ${videoDevices.length} video devices.`);
+                videoDevices.forEach(d => logDebug(`Device: ${d.label || 'Unnamed'} (ID: ${d.deviceId.substring(0, 8)}...)`));
+
                 statusText.innerText = 'Requesting Camera...';
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 640, height: 480 },
-                    audio: false
-                });
+
+                // Try multiple constraint sets
+                const constraintSets = [
+                    { video: { width: { ideal: 640 }, height: { ideal: 480 } } },
+                    { video: { width: 640, height: 480 } },
+                    { video: true }
+                ];
+
+                let stream = null;
+                let lastError = null;
+
+                for (let i = 0; i < constraintSets.length; i++) {
+                    try {
+                        logDebug(`Trying constraint set ${i + 1}: ${JSON.stringify(constraintSets[i])}`);
+                        stream = await navigator.mediaDevices.getUserMedia(constraintSets[i]);
+                        logDebug("Successfully obtained stream!");
+                        break;
+                    } catch (e) {
+                        logDebug(`Constraint set ${i + 1} failed: ${e.name}`);
+                        lastError = e;
+                    }
+                }
+
+                if (!stream) throw lastError;
+
                 video.srcObject = stream;
 
                 // Wait for video to actually start playing
-                await new Promise((resolve) => {
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error("Video load timeout (10s)")), 10000);
                     video.onloadedmetadata = () => {
-                        video.play().then(resolve);
+                        logDebug("Video metadata loaded");
+                        video.play().then(() => {
+                            logDebug("Video playing");
+                            clearTimeout(timeout);
+                            resolve();
+                        }).catch(e => {
+                            logDebug(`Play failed: ${e.message}`);
+                            reject(e);
+                        });
                     };
                 });
 
                 loader.style.display = 'none';
+                document.getElementById('camera-instructions').style.display = 'none';
                 statusText.innerText = 'Camera Active';
-                console.log("Camera setup successful");
+                logDebug("Camera setup successful!");
 
                 canvas.width = 640;
                 canvas.height = 480;
                 processFrame();
             } catch (err) {
+                logDebug(`CRITICAL ERROR: ${err.name} - ${err.message}`);
                 console.error("Error accessing camera:", err);
-                statusText.innerText = 'Camera Error: ' + err.message;
-                loader.innerText = 'Camera Error: ' + err.message;
+                let msg = 'Camera Error: ' + err.message;
+
+                if (err.name === 'NotAllowedError') {
+                    msg = 'Permission Denied: Please allow camera access in your browser settings.';
+                } else if (err.name === 'NotFoundError') {
+                    msg = 'No Camera Found: Please check if your webcam is connected.';
+                } else if (err.name === 'NotReadableError') {
+                    msg = 'Camera Busy: Another application is likely using the camera. Please close other apps and refresh.';
+                } else if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                    msg = 'Security Error: Camera access requires HTTPS unless using localhost.';
+                }
+
+                statusText.innerText = msg;
+                statusText.style.color = '#ff4b2b';
+                loader.innerText = msg;
+                loader.style.color = '#ff4b2b';
+                document.getElementById('camera-instructions').style.display = 'flex';
+                document.getElementById('camera-instructions').style.flexDirection = 'column';
+                document.getElementById('status-dot').style.backgroundColor = '#ff4b2b';
+                document.getElementById('status-dot').style.boxShadow = '0 0 10px #ff4b2b';
             }
         }
 
         async function processFrame() {
             if (isProcessing) return;
 
-            // Draw current video frame to canvas
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // Draw current video frame to OFFSCREEN canvas
+            offscreenCtx.drawImage(video, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
 
             // Get base64 data - Lower quality (0.5) for faster transmission
-            const imageData = canvas.toDataURL('image/jpeg', 0.5);
+            const imageData = offscreenCanvas.toDataURL('image/jpeg', 0.5);
 
             isProcessing = true;
             const startTime = performance.now();
@@ -281,13 +423,28 @@
                     body: JSON.stringify({ image: imageData })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const result = await response.json();
 
                 if (result.status === 'success') {
+                    // Update detections list
+                    const list = document.getElementById('detections-list');
+                    if (result.detections && result.detections.length > 0) {
+                        list.innerHTML = result.detections.map(d => `<div style="padding: 2px 0;">• ${d.name} (${Math.round(d.confidence * 100)}%)</div>`).join('');
+                    } else {
+                        list.innerHTML = '<div style="color: #666;">No objects detected</div>';
+                    }
+
                     // Update canvas with annotated image from server
                     const img = new Image();
                     img.onload = () => {
-                        ctx.drawImage(img, 0, 0);
+                        // Clear and draw annotated image to VISIBLE canvas
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
                         const endTime = performance.now();
                         const latency = Math.round(endTime - startTime);
                         latencyText.innerText = latency;
@@ -299,13 +456,19 @@
                         isProcessing = false;
                         requestAnimationFrame(processFrame);
                     };
+                    img.onerror = (err) => {
+                        console.error("Image load error:", err);
+                        isProcessing = false;
+                        setTimeout(() => requestAnimationFrame(processFrame), 100);
+                    };
                     img.src = result.image;
                 } else {
+                    console.error("Detection backend error:", result.message || "Unknown error");
                     isProcessing = false;
                     setTimeout(() => requestAnimationFrame(processFrame), 100);
                 }
             } catch (err) {
-                console.error("Detection error:", err);
+                console.error("Detection fetch error:", err);
                 isProcessing = false;
                 setTimeout(processFrame, 1000); // Retry after delay
             }
